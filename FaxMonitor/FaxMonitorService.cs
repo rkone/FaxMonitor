@@ -6,11 +6,10 @@ namespace FaxMonitor;
 
 public class FaxMonitorService : BackgroundService
 {
-    private const int PollingIntervalMs = 500;
+    private const int PollingIntervalMs = 50;
     private readonly ILogger<FaxMonitorService> _logger;
     private readonly IDbContextFactory<FaxDbContext> _contextFactory;
     private FaxServer? _faxServer;
-    private FaxAccounts? _faxAccounts;
     private readonly Dictionary<int, string> _devices = new();
     private readonly SortedList<string, FaxOutgoingJob> _outgoingJobs = new();
     public FaxMonitorService(ILogger<FaxMonitorService> logger, IDbContextFactory<FaxDbContext> contextFactory)
@@ -235,6 +234,13 @@ public class FaxMonitorService : BackgroundService
         var extStatus = pJobStatus.ExtendedStatusCode.ToDbVal();
         if (job != null)
         {
+            if (pJobStatus.DeviceId == 0)
+            {
+                //remember which device to blame for the current status
+                var lastEvent = db.JobEvent.OrderByDescending(e => e.EventId).FirstOrDefault(e => e.JobId == job.Id);
+                if (lastEvent != null)
+                    deviceName = lastEvent.DeviceName;
+            }
             job.CSID = pJobStatus.CSID?.Trim();
             job.TSID = pJobStatus.TSID?.Trim();
             job.PageTotal = job.Incoming ? pJobStatus.CurrentPage : pJobStatus.Pages;
@@ -270,6 +276,12 @@ public class FaxMonitorService : BackgroundService
         var extStatus = pJob.ExtendedStatusCode.ToDbVal();
         if (job != null)
         {
+            if (pJob.DeviceId == 0)
+            {
+                var lastEvent = db.JobEvent.OrderByDescending(e => e.EventId).FirstOrDefault(e => e.JobId == job.Id);
+                if (lastEvent != null)
+                    deviceName = lastEvent.DeviceName;
+            }
             job.CSID = pJob.CSID?.Trim();
             job.TSID = pJob.TSID?.Trim();
             job.PageTotal =pJob.Pages;
@@ -350,7 +362,8 @@ public static class StatusExtensions
 public static string ToDbVal(this FAX_JOB_STATUS_ENUM value)
 {
     string status = value.ToString();
-    if (status == "96") status = "fjsNOLINE,RETRYING"; // yeah, this happens.
+    if (status == "96") return "NOLINE,RETRYING"; // yeah, this happens.
+    if (status == "33") return "NOLINE,PENDING"; // this too.
     return status.Length > 3 ? status[3..] : status;
 }
 
