@@ -217,8 +217,10 @@ public class FaxMonitorService : BackgroundService
         if (job != null)
         {
             job.Closed = DateTime.Now;
-            if (status != null)                
+            if (status != null)
                 job.Status = status.Value.ToDbVal();
+            else
+                job.Status = "COMPLETED";
             db.SaveChanges();
             _logger.LogInformation("{time} Job {id} closed with status {status}", DateTime.Now, bstrJobId, status?.ToDbVal() ?? "none");
         }
@@ -364,6 +366,7 @@ public static string ToDbVal(this FAX_JOB_STATUS_ENUM value)
     string status = value.ToString();
     if (status == "96") return "NOLINE,RETRYING"; // yeah, this happens.
     if (status == "33") return "NOLINE,PENDING"; // this too.
+    if (status == "80") return "PAUSED,RETRYING"; // ??
     return status.Length > 3 ? status[3..] : status;
 }
 
