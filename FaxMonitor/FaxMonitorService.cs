@@ -212,15 +212,22 @@ public class FaxMonitorService : BackgroundService
 
     private void OnJobRemoved(string bstrJobId, FAX_JOB_STATUS_ENUM? status = null)
     {
+        var closedDateTime = DateTime.Now;
         using var db = _contextFactory.CreateDbContext();
         var job = db.Job.FirstOrDefault(j => j.ServerJobId == bstrJobId);
         if (job != null)
         {
-            job.Closed = DateTime.Now;
+            job.Closed = closedDateTime;
             if (status != null)
                 job.Status = status.Value.ToDbVal();
             else
+            { 
                 job.Status = "COMPLETED";
+                var lastEvent = db.JobEvent.OrderByDescending(e => e.EventId).FirstOrDefault(e => e.JobId == job.Id);
+                if (lastEvent != null)
+                    job.Events.Add(new() { JobId = job.Id, DeviceName = lastEvent.DeviceName, EventDateTime = closedDateTime, CurrentPage = lastEvent.CurrentPage, 
+                        Status = job.Status, ExtendedStatus = lastEvent.Status });
+            }
             db.SaveChanges();
             _logger.LogInformation("{time} Job {id} closed with status {status}", DateTime.Now, bstrJobId, status?.ToDbVal() ?? "none");
         }
