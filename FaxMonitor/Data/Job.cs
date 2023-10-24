@@ -7,6 +7,8 @@ public class Job
     public int Id { get; set; }
     public string ServerJobId { get; set; } = string.Empty;
     public bool Incoming { get; set; }
+    public string? RecipientName { get; set; }
+    public string? RecipientNumber { get; set; }
     public string? TSID { get; set; }
     public string? CSID { get; set; }
     public int PageTotal { get; set; }

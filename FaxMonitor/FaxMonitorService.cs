@@ -134,7 +134,7 @@ public class FaxMonitorService : BackgroundService
             else
             {                
                 processedJobs.Add(job.Id);
-                OnJobAdded(job.Id, false, job.Sender.Name, job.SubmissionTime);
+                OnJobAdded(job.Id, false, job.Sender.Email, job.Recipient.Name, job.Recipient.FaxNumber, job.SubmissionTime);
                 OnJobChanged(job.Id, job);
                 _outgoingJobs.Add(job.Id, job);
             }
@@ -201,11 +201,11 @@ public class FaxMonitorService : BackgroundService
         OnJobAdded(bstrJobId, false, pFaxAccount.AccountName);
     }
 
-    private void OnJobAdded(string bstrJobId, bool incoming, string user, DateTime? submissionTime = null)
+    private void OnJobAdded(string bstrJobId, bool incoming, string user, string? recipientName = null, string? recipientNumber = null, DateTime? submissionTime = null)
     {
         submissionTime ??= DateTime.Now;
         using var db = _contextFactory.CreateDbContext();
-        var job = new Job { ServerJobId = bstrJobId, Created = submissionTime.Value, Incoming = incoming, User = user };
+        var job = new Job { ServerJobId = bstrJobId, Created = submissionTime.Value, Incoming = incoming, User = user, RecipientName = recipientName, RecipientNumber = recipientNumber };
         db.Job.Add(job);
         db.SaveChanges();
     }
@@ -218,15 +218,15 @@ public class FaxMonitorService : BackgroundService
         if (job != null)
         {
             job.Closed = closedDateTime;
-            if (status != null)
+            if (status != null && status != FAX_JOB_STATUS_ENUM.fjsCOMPLETED)
                 job.Status = status.Value.ToDbVal();
             else
             { 
-                job.Status = "COMPLETED";
-                var lastEvent = db.JobEvent.OrderByDescending(e => e.EventId).FirstOrDefault(e => e.JobId == job.Id);
+                job.Status = "COMPLETED";               
+                var lastEvent = db.JobEvent.OrderByDescending(e => e.EventId).FirstOrDefault(e => e.JobId == job.Id);                
                 if (lastEvent != null)
                     job.Events.Add(new() { JobId = job.Id, DeviceName = lastEvent.DeviceName, EventDateTime = closedDateTime, CurrentPage = lastEvent.CurrentPage, 
-                        Status = job.Status, ExtendedStatus = lastEvent.Status });
+                        Status = job.Status, ExtendedStatus = "CALL_COMPLETED" });
             }
             db.SaveChanges();
             _logger.LogInformation("{time} Job {id} closed with status {status}", DateTime.Now, bstrJobId, status?.ToDbVal() ?? "none");
